@@ -169,7 +169,8 @@ private:
     struct ln_hrz_posn CurrentAltAz { 0, 0 };
     struct ln_hrz_posn TrackedAltAz { 0, 0 };
     bool ResetTrackingSeconds { false };
-    int TrackingSecs { 0 };
+    int TrackingMsecs { 0 };
+    int TimeoutDuration { 500 };
 
     /// Save the serial port name
     std::string SerialPortName;

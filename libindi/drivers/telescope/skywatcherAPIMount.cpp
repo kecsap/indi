@@ -979,7 +979,7 @@ bool SkywatcherAPIMount::ReadScopeStatus()
             IUFindSwitch(&SoftPECModesSP, "SOFTPEC_ENABLED")->s == ISS_ON &&
             IUFindNumber(&SoftPecNP, "SOFTPEC_VALUE") != nullptr)
         {
-            AltAz.alt = AltAz.alt + (IUFindNumber(&SoftPecNP, "SOFTPEC_VALUE")->value / 60) * TrackingSecs;
+            AltAz.alt += (IUFindNumber(&SoftPecNP, "SOFTPEC_VALUE")->value / 60) * TrackingMsecs / 1000;
         }
     }
     DEBUGF(INDI::AlignmentSubsystem::DBG_ALIGNMENT, "Axis2 encoder %ld initial %ld alt(degrees) %lf",
@@ -1174,6 +1174,7 @@ void SkywatcherAPIMount::TimerHit()
     INDI::Telescope::TimerHit();
 
     // Do my own timer stuff assuming ReadScopeStatus has just been called
+    SetTimer(TimeoutDuration);
 
     switch (TrackState)
     {
@@ -1182,7 +1183,7 @@ void SkywatcherAPIMount::TimerHit()
             {
                 DEBUG(INDI::Logger::DBG_SESSION, "Slewing started");
             }
-            TrackingSecs = 0;
+            TrackingMsecs = 0;
             Tracking     = false;
             Slewing      = true;
             if ((AxesStatus[AXIS1].FullStop) && (AxesStatus[AXIS2].FullStop))
@@ -1206,7 +1207,7 @@ void SkywatcherAPIMount::TimerHit()
             if (!Tracking)
             {
                 DEBUG(INDI::Logger::DBG_SESSION, "Tracking started");
-                TrackingSecs = 0;
+                TrackingMsecs = 0;
                 TrackedAltAz = CurrentAltAz;
             }
 
@@ -1214,7 +1215,7 @@ void SkywatcherAPIMount::TimerHit()
             if (ResetTrackingSeconds)
             {
                 ResetTrackingSeconds = false;
-                TrackingSecs         = 0;
+                TrackingMsecs         = 0;
                 TrackedAltAz         = CurrentAltAz;
             }
             double trackingDeltaAlt = std::abs(CurrentAltAz.alt-TrackedAltAz.alt);
@@ -1226,10 +1227,10 @@ void SkywatcherAPIMount::TimerHit()
                           trackingDeltaAlt+trackingDeltaAz);
                 Abort();
             }
-            TrackingSecs++;
-            if (TrackingSecs % 60 == 0)
+            TrackingMsecs += TimeoutDuration;
+            if (TrackingMsecs % 60000 == 0)
             {
-                DEBUGF(INDI::Logger::DBG_SESSION, "Tracking in progress (%d seconds elapsed)", TrackingSecs);
+                DEBUGF(INDI::Logger::DBG_SESSION, "Tracking in progress (%d seconds elapsed)", TrackingMsecs / 1000);
             }
             Tracking = true;
             Slewing  = false;
@@ -1297,7 +1298,7 @@ void SkywatcherAPIMount::TimerHit()
                     IUFindSwitch(&SoftPECModesSP, "SOFTPEC_ENABLED")->s == ISS_ON &&
                     IUFindNumber(&SoftPecNP, "SOFTPEC_VALUE") != nullptr)
                 {
-                    AltAz.alt = AltAz.alt + (IUFindNumber(&SoftPecNP, "SOFTPEC_VALUE")->value / 60) * TrackingSecs;
+                    AltAz.alt += (IUFindNumber(&SoftPecNP, "SOFTPEC_VALUE")->value / 60) * TrackingMsecs / 1000;
                 }
                 AltAz.az = 180 + AltAz.az;
             }
@@ -1420,9 +1421,9 @@ void SkywatcherAPIMount::TimerHit()
             {
                 DEBUG(INDI::Logger::DBG_SESSION, "Tracking stopped");
             }
-            TrackingSecs = 0;
-            Tracking     = false;
-            Slewing      = false;
+            TrackingMsecs = 0;
+            Tracking      = false;
+            Slewing       = false;
             break;
     }
 }
