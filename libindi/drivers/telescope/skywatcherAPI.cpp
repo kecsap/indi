@@ -713,6 +713,8 @@ void SkywatcherAPI::SlewTo(AXISID Axis, long OffsetInMicrosteps, bool verbose)
     else
         SetMotionMode(Axis, '2', Direction);
 
+    MYDEBUGF(INDI::Logger::DBG_SESSION, "SlewTo Offset - AXIS %d offset: %ld", (int)Axis, OffsetInMicrosteps);
+
     SetGotoTargetOffset(Axis, OffsetInMicrosteps);
 
     if (HighSpeed)

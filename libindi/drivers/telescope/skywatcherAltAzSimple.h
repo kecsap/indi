@@ -143,6 +143,15 @@ private:
     ISwitch WedgeMode[3];
     ISwitchVectorProperty WedgeModeSP;
 
+    // A switch for drift alignment modes with PhD
+    enum
+    {
+        DA_ENABLED,
+        DA_DISABLED
+    };
+    ISwitch DriftAlignmentMode[2];
+    ISwitchVectorProperty DriftAlignmentModeSP;
+
     // A switch for tracking logging
     enum
     {
@@ -160,6 +169,19 @@ private:
     INumber TrackingValuesN[3];
     INumberVectorProperty TrackingValuesNP;
 
+    // A switch for adaptive wedge tracking modes
+    enum
+    {
+        AWT_ENABLED,
+        AWT_DISABLED
+    };
+    ISwitch AwtMode[2];
+    ISwitchVectorProperty AwtModeSP;
+
+    // Wedge tracking values
+    INumber WedgeTrackingValuesN[2];
+    INumberVectorProperty WedgeTrackingValuesNP;
+
     // A switch for park movement directions (clockwise/counterclockwise)
     ISwitch ParkMovementDirection[2];
     ISwitchVectorProperty ParkMovementDirectionSP;
@@ -176,7 +198,6 @@ private:
     ln_equ_posn CurrentTrackingTarget { 0, 0 };
     long OldTrackingTarget[2] { 0, 0 };
     struct ln_hrz_posn CurrentAltAz { 0, 0 };
-    bool ResetTrackingSeconds { false };
     int TrackingMsecs { 0 };
     int TrackingStartTimer { 0 };
     double GuideDeltaAlt { 0 };
@@ -184,6 +205,8 @@ private:
     int TimeoutDuration { 500 };
     const std::string TrackLogFileName;
     int UpdateCount { 0 };
+    std::vector<int> TrackingOffsets;
+    bool TrackingAdjustments { true };
 
     /// Save the serial port name
     std::string SerialPortName;

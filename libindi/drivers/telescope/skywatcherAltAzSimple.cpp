@@ -333,7 +333,7 @@ bool SkywatcherAltAzSimple::initProperties()
     // Register any visible before connection properties
 
     // Slew modes
-    IUFillSwitch(&SlewModes[SLEW_SILENT], "SLEW_SILENT", "Silent", ISS_OFF);
+    IUFillSwitch(&SlewModes[SLEW_SILENT], "SLEW_SILENT", "Silent", ISS_ON);
     IUFillSwitch(&SlewModes[SLEW_NORMAL], "SLEW_NORMAL", "Normal", ISS_OFF);
     IUFillSwitchVector(&SlewModesSP, SlewModes, 2, getDeviceName(), "TELESCOPE_MOTION_SLEWMODE", "Slew Mode",
                        MOTION_TAB, IP_RW, ISR_ATMOST1, 60, IPS_IDLE);
@@ -341,9 +341,15 @@ bool SkywatcherAltAzSimple::initProperties()
     // Wedge mode
     IUFillSwitch(&WedgeMode[WEDGE_SIMPLE], "WEDGE_SIMPLE", "Simple wedge", ISS_OFF);
     IUFillSwitch(&WedgeMode[WEDGE_EQ], "WEDGE_EQ", "EQ wedge", ISS_OFF);
-    IUFillSwitch(&WedgeMode[WEDGE_DISABLED], "WEDGE_DISABLED", "Disabled", ISS_OFF);
+    IUFillSwitch(&WedgeMode[WEDGE_DISABLED], "WEDGE_DISABLED", "Disabled", ISS_ON);
     IUFillSwitchVector(&WedgeModeSP, WedgeMode, 3, getDeviceName(), "TELESCOPE_MOTION_WEDGEMODE",
                        "Wedge Mode", MOTION_TAB, IP_RW, ISR_ATMOST1, 60, IPS_IDLE);
+
+    // Drift alignment modes with PhD
+    IUFillSwitch(&DriftAlignmentMode[DA_ENABLED], "DA_ENABLED", "Enabled", ISS_OFF);
+    IUFillSwitch(&DriftAlignmentMode[DA_DISABLED], "DA_DISABLED", "Disabled", ISS_ON);
+    IUFillSwitchVector(&DriftAlignmentModeSP, DriftAlignmentMode, 2, getDeviceName(), "TELESCOPE_MOTION_DAMODE",
+                       "Drift Alignment", MOTION_TAB, IP_RW, ISR_ATMOST1, 60, IPS_IDLE);
 
     // Track logging mode
     IUFillSwitch(&TrackLogMode[TRACKLOG_ENABLED], "TRACKLOG_ENABLED", "Enable logging", ISS_OFF);
@@ -364,8 +370,19 @@ bool SkywatcherAltAzSimple::initProperties()
     // Alt rate: 0.64, Az rate: 0.64, timeout: 1000 msec
     IUFillNumber(&TrackingValuesN[0], "TRACKING_RATE_ALT", "rate (Alt)", "%1.3f", 0.001, 10.0, 0.000001, 0.64);
     IUFillNumber(&TrackingValuesN[1], "TRACKING_RATE_AZ", "rate (Az)", "%1.3f", 0.001, 10.0, 0.000001, 0.64);
-    IUFillNumber(&TrackingValuesN[2], "TRACKING_TIMEOUT", "msec (period)", "%1.3f", 0.001, 10000.0, 0.000001, 1000.0);
-    IUFillNumberVector(&TrackingValuesNP, TrackingValuesN, 3, getDeviceName(), "TRACKING_VALUES", "Tracking Values", MOTION_TAB,
+    IUFillNumber(&TrackingValuesN[2], "TRACKING_TIMEOUT", "msec (period)", "%1.3f", 0.001, 10000.0, 0.000001, 500.0);
+    IUFillNumberVector(&TrackingValuesNP, TrackingValuesN, 3, getDeviceName(), "TRACKING_VALUES", "Tracking", MOTION_TAB,
+                       IP_RW, 60, IPS_IDLE);
+
+    // Adaptive wedge tracking modes
+    IUFillSwitch(&AwtMode[AWT_ENABLED], "AWT_ENABLED", "Enabled", ISS_OFF);
+    IUFillSwitch(&AwtMode[AWT_DISABLED], "AWT_DISABLED", "Disabled", ISS_ON);
+    IUFillSwitchVector(&AwtModeSP, AwtMode, 2, getDeviceName(), "TELESCOPE_MOTION_AWTMODE", "Adaptive Wedge Tracking",
+                       MOTION_TAB, IP_RW, ISR_ATMOST1, 60, IPS_IDLE);
+
+    IUFillNumber(&WedgeTrackingValuesN[0], "WTRACKING_SIDEREAL_BASE_RATE_AZ", "wedge base rate (Az)", "%1.3f", 0.001, 1000.0, 0.000001, 40.5);
+    IUFillNumber(&WedgeTrackingValuesN[1], "WTRACKING_SIDEREAL_MEAN_RATE_AZ", "wedge mean rate (Az)", "%1.3f", 0.001, 1000.0, 0.000001, 31);
+    IUFillNumberVector(&WedgeTrackingValuesNP, WedgeTrackingValuesN, 2, getDeviceName(), "WTRACKING_VALUES", "Wedge Tracking", MOTION_TAB,
                        IP_RW, 60, IPS_IDLE);
 
     // Park movement directions
@@ -418,13 +435,27 @@ void SkywatcherAltAzSimple::ISGetProperties(const char *dev)
         defineNumber(&AxisOneEncoderValuesV);
         defineNumber(&AxisTwoEncoderValuesV);
         defineSwitch(&SlewModesSP);
+//        loadConfig(true, "TELESCOPE_MOTION_SLEWMODE");
         defineSwitch(&WedgeModeSP);
+//        loadConfig(true, "TELESCOPE_MOTION_WEDGEMODE");
+        defineSwitch(&DriftAlignmentModeSP);
+//        loadConfig(true, "TELESCOPE_MOTION_DAMODE");
         defineSwitch(&TrackLogModeSP);
+//        loadConfig(true, "TELESCOPE_MOTION_TRACKLOGMODE");
         defineNumber(&GuidingRatesNP);
+//        loadConfig(true, "GUIDE_RATES");
         defineNumber(&TrackingValuesNP);
+//        loadConfig(true, "TRACKING_VALUES");
+        defineSwitch(&AwtModeSP);
+//        loadConfig(true, "TELESCOPE_MOTION_AWTMODE");
+        defineNumber(&WedgeTrackingValuesNP);
+//        loadConfig(true, "WTRACKING_VALUES");
         defineSwitch(&ParkMovementDirectionSP);
+//        loadConfig(true, "PARK_DIRECTION");
         defineSwitch(&ParkPositionSP);
+//        loadConfig(true, "PARK_POSITION");
         defineSwitch(&UnparkPositionSP);
+//        loadConfig(true, "UNPARK_POSITION");
         defineNumber(&GuideNSNP);
         defineNumber(&GuideWENP);
     }
@@ -459,6 +490,14 @@ bool SkywatcherAltAzSimple::ISNewNumber(const char *dev, const char *name, doubl
             TrackingValuesNP.s = IPS_OK;
             IUUpdateNumber(&TrackingValuesNP, values, names, n);
             IDSetNumber(&TrackingValuesNP, nullptr);
+            return true;
+        }
+
+        if (strcmp(name, "WTRACKING_VALUES") == 0)
+        {
+            WedgeTrackingValuesNP.s = IPS_OK;
+            IUUpdateNumber(&WedgeTrackingValuesNP, values, names, n);
+            IDSetNumber(&WedgeTrackingValuesNP, nullptr);
             return true;
         }
 
@@ -982,9 +1021,12 @@ bool SkywatcherAltAzSimple::saveConfigItems(FILE *fp)
 {
     IUSaveConfigSwitch(fp, &SlewModesSP);
     IUSaveConfigSwitch(fp, &WedgeModeSP);
+    IUSaveConfigSwitch(fp, &DriftAlignmentModeSP);
     IUSaveConfigSwitch(fp, &TrackLogModeSP);
     IUSaveConfigNumber(fp, &GuidingRatesNP);
     IUSaveConfigNumber(fp, &TrackingValuesNP);
+    IUSaveConfigSwitch(fp, &AwtModeSP);
+    IUSaveConfigNumber(fp, &WedgeTrackingValuesNP);
     IUSaveConfigSwitch(fp, &ParkMovementDirectionSP);
     IUSaveConfigSwitch(fp, &ParkPositionSP);
     IUSaveConfigSwitch(fp, &UnparkPositionSP);
@@ -996,6 +1038,7 @@ bool SkywatcherAltAzSimple::saveConfigItems(FILE *fp)
 bool SkywatcherAltAzSimple::Sync(double ra, double dec)
 {
     DEBUG(DBG_SCOPE, "SkywatcherAltAzSimple::Sync");
+    const bool IsTracking = (TrackState == SCOPE_TRACKING);
 
     // Compute a telescope direction vector from the current encoders
     if (!GetEncoder(AXIS1))
@@ -1017,13 +1060,19 @@ bool SkywatcherAltAzSimple::Sync(double ra, double dec)
     ZeroPositionEncoders[AXIS1] = PolarisPositionEncoders[AXIS1];
     ZeroPositionEncoders[AXIS2] = PolarisPositionEncoders[AXIS2];
 
-    // The tracking seconds should be reset to restart the drift compensation
-    ResetTrackingSeconds = true;
-
     // Stop any movements
     if (TrackState != SCOPE_IDLE && TrackState != SCOPE_PARKED)
     {
         Abort();
+    }
+    // Slew to the original tracking target
+    if (IsTracking)
+    {
+        IUFindSwitch(&CoordSP, "TRACK")->s = ISS_ON;
+        IUFindSwitch(&CoordSP, "SLEW")->s  = ISS_OFF;
+        IUFindSwitch(&CoordSP, "SYNC")->s  = ISS_OFF;
+        IDSetSwitch(&CoordSP, nullptr);
+        Goto(CurrentTrackingTarget.ra, CurrentTrackingTarget.dec);
     }
 
     // Might as well do this
@@ -1095,22 +1144,15 @@ void SkywatcherAltAzSimple::TimerHit()
             if (!Tracking)
             {
                 DEBUG(INDI::Logger::DBG_SESSION, "Tracking started");
-                TrackingMsecs   = 0;
-                TimeoutDuration = (int)IUFindNumber(&TrackingValuesNP, "TRACKING_TIMEOUT")->value;
-                GuideDeltaAlt   = 0;
-                GuideDeltaAz    = 0;
+                TrackingMsecs       = 0;
+                TimeoutDuration     = (int)IUFindNumber(&TrackingValuesNP, "TRACKING_TIMEOUT")->value;
+                GuideDeltaAlt       = 0;
+                GuideDeltaAz        = 0;
+                TrackingAdjustments = true;
+                TrackingOffsets.clear();
                 ResetGuidePulses();
             }
 
-            // Restart the drift compensation after syncing
-            if (ResetTrackingSeconds)
-            {
-                ResetTrackingSeconds = false;
-                TrackingMsecs        = 0;
-                GuideDeltaAlt        = 0;
-                GuideDeltaAz         = 0;
-                ResetGuidePulses();
-            }
             TrackingMsecs += TimeoutDuration;
             if (TrackingMsecs % 60000 == 0)
             {
@@ -1140,17 +1182,29 @@ void SkywatcherAltAzSimple::TimerHit()
                 GuideDeltaAlt += pulse.DeltaAlt;
                 GuideDeltaAz += pulse.DeltaAz;
             }
+            if (!GuidingPulses.empty())
+            {
+                TrackingAdjustments = false;
+            }
             GuidingPulses.clear();
 
             long AltitudeOffsetMicrosteps = DegreesToMicrosteps(AXIS2, FutureAltAz.alt-CurrentAltAz.alt+GuideDeltaAlt);
             long AzimuthOffsetMicrosteps = DegreesToMicrosteps(AXIS1, FutureAltAz.az-CurrentAltAz.az+GuideDeltaAz);
 
-            // When the Alt/Az mount is on the top of an EQ mount, the EQ mount already tracks in
-            // sidereal speed. Only autoguiding is enabled in tracking mode.
-            if (IUFindSwitch(&WedgeModeSP, "WEDGE_EQ")->s == ISS_ON)
+            // Wedge cases
+            if (IUFindSwitch(&WedgeModeSP, "WEDGE_EQ")->s == ISS_ON ||
+                IUFindSwitch(&WedgeModeSP, "WEDGE_SIMPLE")->s == ISS_ON)
             {
-                AltitudeOffsetMicrosteps = (long)((float)IUFindNumber(&GuidingRatesNP, "GUIDEDEC_RATE")->value*GuideDeltaAlt);
-                AzimuthOffsetMicrosteps = (long)((float)IUFindNumber(&GuidingRatesNP, "GUIDERA_RATE")->value*GuideDeltaAz);
+                if (IUFindSwitch(&DriftAlignmentModeSP, "DA_ENABLED")->s == ISS_ON)
+                {
+                    AltitudeOffsetMicrosteps = 0;
+                    AzimuthOffsetMicrosteps = 0;
+                }
+                else
+                {
+                    AltitudeOffsetMicrosteps = (long)((float)IUFindNumber(&GuidingRatesNP, "GUIDEDEC_RATE")->value*GuideDeltaAlt);
+                    AzimuthOffsetMicrosteps = (long)((float)IUFindNumber(&GuidingRatesNP, "GUIDERA_RATE")->value*GuideDeltaAz);
+                }
                 GuideDeltaAlt = 0;
                 GuideDeltaAz = 0;
                 // Correct the movements of the EQ mount
@@ -1162,7 +1216,6 @@ void SkywatcherAltAzSimple::TimerHit()
                 ZeroPositionEncoders[AXIS1] = PolarisPositionEncoders[AXIS1];
                 ZeroPositionEncoders[AXIS2] = PolarisPositionEncoders[AXIS2];
             }
-
             if (AltitudeOffsetMicrosteps > MicrostepsPerRevolution[AXIS2] / 2)
             {
                 // Going the long way round - send it the other way
@@ -1186,8 +1239,13 @@ void SkywatcherAltAzSimple::TimerHit()
 
             AltitudeOffsetMicrosteps = (long)((double)AltitudeOffsetMicrosteps*IUFindNumber(&TrackingValuesNP, "TRACKING_RATE_ALT")->value);
             AzimuthOffsetMicrosteps = (long)((double)AzimuthOffsetMicrosteps*IUFindNumber(&TrackingValuesNP, "TRACKING_RATE_AZ")->value);
+            // Add the sidereal tracking for simple wedge after the guiding value was calculated.
+            if (IUFindSwitch(&WedgeModeSP, "WEDGE_SIMPLE")->s == ISS_ON)
+            {
+                AzimuthOffsetMicrosteps += (long)IUFindNumber(&WedgeTrackingValuesNP, "WTRACKING_SIDEREAL_BASE_RATE_AZ")->value;
+            }
 
-            LogMessage("TRACKING: now Alt %lf Az %lf - future Alt %lf Az %lf - microsteps_diff Alt %ld Az %ld",
+            LogMessage("TRACKING: now Alt %lf Az %lf - future Alt %lf Az %lf - msteps offset Alt %ld Az %ld",
                        CurrentAltAz.alt, CurrentAltAz.az, FutureAltAz.alt, FutureAltAz.az,
                        AltitudeOffsetMicrosteps, AzimuthOffsetMicrosteps);
 
@@ -1213,13 +1271,56 @@ void SkywatcherAltAzSimple::TimerHit()
                 // Nothing to do - stop the axis
                 SlowStop(AXIS2);
             }
+            static long OldAxis1Encoder = 0;
+            static long OldAxis2Encoder = 0;
 
-            DEBUGF(DBG_SCOPE, "Tracking - AXIS1 error %d (offset: %ld) AXIS2 error %d (offset: %ld)",
+            DEBUGF(DBG_SCOPE, "Tracking - AXIS1 error %d (offset: %ld, diff: %ld) AXIS2 error %d (offset: %ld, %ld)",
                    OldTrackingTarget[AXIS1] - CurrentEncoders[AXIS1], AzimuthOffsetMicrosteps,
-                   OldTrackingTarget[AXIS2] - CurrentEncoders[AXIS2], AltitudeOffsetMicrosteps);
+                   CurrentEncoders[AXIS1]-OldAxis1Encoder,
+                   OldTrackingTarget[AXIS2] - CurrentEncoders[AXIS2], AltitudeOffsetMicrosteps,
+                   CurrentEncoders[AXIS2]-OldAxis2Encoder);
 
+            // Finetune the azimuthal tracking rate
+            if (IUFindSwitch(&WedgeModeSP, "WEDGE_SIMPLE")->s == ISS_ON &&
+                IUFindSwitch(&AwtModeSP, "AWT_ENABLED")->s == ISS_ON)
+            {
+                TrackingOffsets.push_back((int)CurrentEncoders[AXIS1]-OldAxis1Encoder);
+                if (TrackingOffsets.size() > 10)
+                {
+                    TrackingOffsets.erase(TrackingOffsets.begin());
+                }
+                if (TrackingOffsets.size() == 10)
+                {
+                    double AverageOffset = 0;
+
+                    for (auto offset : TrackingOffsets)
+                    {
+                        AverageOffset += (double)offset;
+                    }
+                    AverageOffset /= 5;
+                    DEBUGF(DBG_SCOPE, "Tracking - Average azimuthal offset: %1.4f (%ld)", AverageOffset, CurrentEncoders[AXIS1]);
+                    const double Mean = IUFindNumber(&WedgeTrackingValuesNP, "WTRACKING_SIDEREAL_MEAN_RATE_AZ")->value;
+
+                    if (AverageOffset < Mean-2 && TrackingAdjustments)
+                    {
+                        double NewValue = IUFindNumber(&WedgeTrackingValuesNP, "WTRACKING_SIDEREAL_BASE_RATE_AZ")->value+0.1;
+
+                        IUFindNumber(&WedgeTrackingValuesNP, "WTRACKING_SIDEREAL_BASE_RATE_AZ")->value = NewValue;
+                        IDSetNumber(&WedgeTrackingValuesNP, nullptr);
+                    } else
+                    if (AverageOffset > Mean+2 && TrackingAdjustments)
+                    {
+                        double NewValue = IUFindNumber(&WedgeTrackingValuesNP, "WTRACKING_SIDEREAL_BASE_RATE_AZ")->value-0.1;
+
+                        IUFindNumber(&WedgeTrackingValuesNP, "WTRACKING_SIDEREAL_BASE_RATE_AZ")->value = NewValue;
+                        IDSetNumber(&WedgeTrackingValuesNP, nullptr);
+                    }
+                }
+            }
             OldTrackingTarget[AXIS1] = AzimuthOffsetMicrosteps + CurrentEncoders[AXIS1];
             OldTrackingTarget[AXIS2] = AltitudeOffsetMicrosteps + CurrentEncoders[AXIS2];
+            OldAxis1Encoder = CurrentEncoders[AXIS1];
+            OldAxis2Encoder = CurrentEncoders[AXIS2];
             break;
         }
         break;
@@ -1267,13 +1368,27 @@ bool SkywatcherAltAzSimple::updateProperties()
         defineNumber(&AxisOneEncoderValuesV);
         defineNumber(&AxisTwoEncoderValuesV);
         defineSwitch(&SlewModesSP);
+//        loadConfig(true, "TELESCOPE_MOTION_SLEWMODE");
         defineSwitch(&WedgeModeSP);
+//        loadConfig(true, "TELESCOPE_MOTION_WEDGEMODE");
+        defineSwitch(&DriftAlignmentModeSP);
+//        loadConfig(true, "TELESCOPE_MOTION_DAMODE");
         defineSwitch(&TrackLogModeSP);
+//        loadConfig(true, "TELESCOPE_MOTION_TRACKLOGMODE");
         defineNumber(&GuidingRatesNP);
+//        loadConfig(true, "GUIDE_RATES");
         defineNumber(&TrackingValuesNP);
+//        loadConfig(true, "TRACKING_VALUES");
+        defineSwitch(&AwtModeSP);
+//        loadConfig(true, "TELESCOPE_MOTION_AWTMODE");
+        defineNumber(&WedgeTrackingValuesNP);
+//        loadConfig(true, "WTRACKING_VALUES");
         defineSwitch(&ParkMovementDirectionSP);
+//        loadConfig(true, "PARK_DIRECTION");
         defineSwitch(&ParkPositionSP);
+//        loadConfig(true, "PARK_POSITION");
         defineSwitch(&UnparkPositionSP);
+//        loadConfig(true, "UNPARK_POSITION");
 
         defineNumber(&GuideNSNP);
         defineNumber(&GuideWENP);
@@ -1292,9 +1407,12 @@ bool SkywatcherAltAzSimple::updateProperties()
         deleteProperty(AxisTwoEncoderValuesV.name);
         deleteProperty(SlewModesSP.name);
         deleteProperty(WedgeModeSP.name);
+        deleteProperty(DriftAlignmentModeSP.name);
         deleteProperty(TrackLogModeSP.name);
         deleteProperty(GuidingRatesNP.name);
         deleteProperty(TrackingValuesNP.name);
+        deleteProperty(AwtModeSP.name);
+        deleteProperty(WedgeTrackingValuesNP.name);
         deleteProperty(ParkMovementDirectionSP.name);
         deleteProperty(ParkPositionSP.name);
         deleteProperty(UnparkPositionSP.name);
