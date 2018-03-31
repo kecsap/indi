@@ -200,6 +200,7 @@ private:
     struct ln_hrz_posn CurrentAltAz { 0, 0 };
     int TrackingMsecs { 0 };
     int TrackingStartTimer { 0 };
+    int TrackingSteps { 0 };
     double GuideDeltaAlt { 0 };
     double GuideDeltaAz { 0 };
     int TimeoutDuration { 500 };

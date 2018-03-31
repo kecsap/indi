@@ -1111,6 +1111,7 @@ void SkywatcherAltAzSimple::TimerHit()
                 TrackingStartTimer = 0;
             }
             TrackingMsecs   = 0;
+            TrackingSteps   = 0;
             GuideDeltaAlt   = 0;
             GuideDeltaAz    = 0;
             ResetGuidePulses();
@@ -1145,6 +1146,7 @@ void SkywatcherAltAzSimple::TimerHit()
             {
                 DEBUG(INDI::Logger::DBG_SESSION, "Tracking started");
                 TrackingMsecs       = 0;
+                TrackingSteps       = 0;
                 TimeoutDuration     = (int)IUFindNumber(&TrackingValuesNP, "TRACKING_TIMEOUT")->value;
                 GuideDeltaAlt       = 0;
                 GuideDeltaAz        = 0;
@@ -1154,6 +1156,7 @@ void SkywatcherAltAzSimple::TimerHit()
             }
 
             TrackingMsecs += TimeoutDuration;
+            TrackingSteps++;
             if (TrackingMsecs % 60000 == 0)
             {
                 DEBUGF(INDI::Logger::DBG_SESSION, "Tracking in progress (%d seconds elapsed)", TrackingMsecs / 1000);
@@ -1242,7 +1245,25 @@ void SkywatcherAltAzSimple::TimerHit()
             // Add the sidereal tracking for simple wedge after the guiding value was calculated.
             if (IUFindSwitch(&WedgeModeSP, "WEDGE_SIMPLE")->s == ISS_ON)
             {
-                AzimuthOffsetMicrosteps += (long)IUFindNumber(&WedgeTrackingValuesNP, "WTRACKING_SIDEREAL_BASE_RATE_AZ")->value;
+                int Correction = 0;
+
+                if (TrackingSteps % 4 == 0)
+                {
+                    Correction = -1;
+                }
+                if (TrackingSteps % 4 == 1)
+                {
+                    Correction = 0;
+                }
+                if (TrackingSteps % 4 == 2)
+                {
+                    Correction = 1;
+                }
+                if (TrackingSteps % 4 == 3)
+                {
+                    Correction = 0;
+                }
+                AzimuthOffsetMicrosteps += (long)IUFindNumber(&WedgeTrackingValuesNP, "WTRACKING_SIDEREAL_BASE_RATE_AZ")->value+Correction;
             }
 
             LogMessage("TRACKING: now Alt %lf Az %lf - future Alt %lf Az %lf - msteps offset Alt %ld Az %ld",
@@ -1335,6 +1356,7 @@ void SkywatcherAltAzSimple::TimerHit()
                 DEBUG(INDI::Logger::DBG_SESSION, "Tracking stopped");
             }
             TrackingMsecs   = 0;
+            TrackingSteps   = 0;
             GuideDeltaAlt   = 0;
             GuideDeltaAz    = 0;
             ResetGuidePulses();
