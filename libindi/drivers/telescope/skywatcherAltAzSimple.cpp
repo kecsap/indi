@@ -1247,21 +1247,9 @@ void SkywatcherAltAzSimple::TimerHit()
             {
                 int Correction = 0;
 
-                if (TrackingSteps % 4 == 0)
-                {
-                    Correction = -1;
-                }
-                if (TrackingSteps % 4 == 1)
-                {
-                    Correction = 0;
-                }
-                if (TrackingSteps % 4 == 2)
+                if (TrackingSteps % 2 == 1)
                 {
                     Correction = 1;
-                }
-                if (TrackingSteps % 4 == 3)
-                {
-                    Correction = 0;
                 }
                 AzimuthOffsetMicrosteps += (long)IUFindNumber(&WedgeTrackingValuesNP, "WTRACKING_SIDEREAL_BASE_RATE_AZ")->value+Correction;
             }
